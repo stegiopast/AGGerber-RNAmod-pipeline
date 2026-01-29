@@ -1,9 +1,0 @@
-nextflow run main.nf \
-  --pod5_dir /home/luxuntu/Data/testset_HEK_50ids.pod5 \
-  --model sup \
-  --mods "2OmeG" \
-  --ref_genome /home/luxuntu/Data/GRCh38.primary_assembly.genome.fa \
-  --ref_transcriptome /home/luxuntu/Data/gencode.v49.transcripts.fa \
-  --genome_gtf /home/luxuntu/Data/gencode.v49.annotation.gtf \
-  --cpus 8
-  

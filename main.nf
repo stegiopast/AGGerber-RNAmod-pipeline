@@ -9,7 +9,7 @@ def completion_log = [].asSynchronized()
 params.pod5_dir = false
 params.ref_genome = false
 params.ref_transcriptome = false
-params.genome_gtf = false
+
 params.outdir = './results'
 params.help = false
 params.model = 'sup'   // Default to 'sup' (super accuracy) model
@@ -22,6 +22,65 @@ params.mods = false //"m5C_2OmeC,inosine_m6A_2OmeA,pseU_2OmeU,2OmeG"  // Specify
 // Modkit Pileup Parameters
 params.modkit_filter_threshold = 0.8
 params.modkit_mod_threshold    = 0.98
+
+// Modkit mod name normalization and threshold flag builder
+def MODKIT_MOD_MAP = [
+    'm6a':   'a',
+    '6ma':   'a',
+    'am':    '69426',
+    '2omea': '69426',
+    'inosine': '17596',
+    'ino':     '17596',
+    'pseu':    '17802',
+    'pseudouridine': '17802',
+    'um':    '19227',
+    '2omeu': '19227',
+    'gm':    '19229',
+    '2omeg': '19229',
+    'cm':    '19228',
+    '2omec': '19228',
+    'm5c':   'm',
+    '5mc':   'm'
+]
+
+def normalizeModName(String mod) {
+    if (!mod) {
+        return null
+    }
+    return mod.toLowerCase()
+              .replaceAll(/\s+/, '')
+              .replaceAll(/[^a-z0-9]/, '')
+}
+
+def buildModThresholdFlags(def mods, Map modMap, def threshold) {
+    if (!mods || mods == "false") {
+        return ""
+    }
+    def tokens = mods.toString()
+                     .split(',') as List
+    tokens = tokens.collectMany { (it.split('_') as List) }
+                     .collect { normalizeModName(it) }
+                     .findAll { it }
+
+    def flags = tokens.collect { key ->
+        def code = modMap[key]
+        code ? "--mod-threshold ${code}:${threshold}" : null
+    }.findAll { it }
+
+    return flags.unique().join(' ')
+}
+
+def buildModifiedBasesFlag(def mods) {
+    if (!mods || mods == "false") {
+        return ""
+    }
+    def tokens = mods.toString()
+                     .split(',') as List
+    tokens = tokens.collectMany { (it.split('_') as List) }
+                     .collect { it?.trim() }
+                     .findAll { it }
+    return tokens ? "--modified-bases ${tokens.join(' ')}" : ""
+}
 
 // Help message
 if (params.help) {
@@ -38,7 +97,6 @@ if (params.help) {
       --pod5_dir      Path to the directory containing POD5 files (use quotes and wildcards for multiple samples).
       --ref_genome    Path to the reference genome in FASTA format.
       --ref_transcriptome    Path to the reference transcriptome in FASTA format.
-      --genome_gtf    Path to the genome annotation file in GTF format.
     
     Optional Arguments:
       --outdir              Base path for output directories. Results will be organized by file type (base, featureC, salmon, etc.). Default: ./results
@@ -69,12 +127,7 @@ if (!params.ref_genome) {
     exit 1, "Reference genome not specified! Please use --ref_genome"
 }
 if (!params.ref_transcriptome) {
-    exit 1, "Reference transcriptome not specified! Please use --ref_transcriptome"
-}
-if (!params.genome_gtf) {
-    exit 1, "Genome GTF annotation file not specified! Please use --genome_gtf"
-}
-
+    exit 1, "Reference transcriptome not specified! Please use --ref_transcriptome"}
 
 
 
@@ -102,7 +155,7 @@ process DORADO_BASECALL {
         ${gpu_flag} \\
         "${params.model}" \\
         "${pod5_dir}" \\
-        ${mod_flag} > "${meta.id}.bam"
+        ${mod_flag} -n 10000 > "${meta.id}.bam"
     """
 }
 
@@ -120,10 +173,21 @@ process MINIMAP2_ALIGN_GENOME {
     script:
     // Use 'splice-ont' for genome alignment of RNA reads
     """
+    # Extract @RG lines from original Dorado BAM
+    samtools view -H "${bam_file}" | grep "^@RG" > original_rg.txt
+
     # This preserves modification tags (mm, ml) essential for modification analysis
     samtools fastq -T "*" "${bam_file}" | minimap2 -y --MD -ax splice-ont -t ${task.cpus} "${ref_genome}" - | \\
     samtools view -bh -F 260 | \\
-    samtools sort -@ ${task.cpus} -o "${meta.id}.aligned.sorted.bam"
+    samtools sort -@ ${task.cpus} -o temp.bam
+
+    # Merge headers: aligned BAM header + original @RG lines
+    samtools view -H temp.bam > new_header.sam
+    cat original_rg.txt >> new_header.sam
+
+    # Apply new header
+    samtools reheader new_header.sam temp.bam > "${meta.id}.aligned.sorted.bam"
+    rm temp.bam new_header.sam original_rg.txt
     
     # Index the BAM file
     samtools index "${meta.id}.aligned.sorted.bam"
@@ -144,9 +208,20 @@ process MINIMAP2_ALIGN_TRANSCRIPTOME {
     script:
     // Use 'map-ont' preset for transcriptome alignment of RNA reads
     """
+    # Extract @RG lines from original Dorado BAM
+    samtools view -H "${bam_file}" | grep "^@RG" > original_rg.txt
+
     samtools fastq -T "*" "${bam_file}" | minimap2 -y --MD -ax map-ont -t ${task.cpus} "${ref_transcriptome}" - | \\
     samtools view -bh -F 260 | \\
-    samtools sort -@ ${task.cpus} -o "${meta.id}.transcriptome.aligned.sorted.bam"
+    samtools sort -@ ${task.cpus} -o temp.bam
+
+    # Merge headers: aligned BAM header + original @RG lines
+    samtools view -H temp.bam > new_header.sam
+    cat original_rg.txt >> new_header.sam
+
+    # Apply new header
+    samtools reheader new_header.sam temp.bam > "${meta.id}.transcriptome.aligned.sorted.bam"
+    rm temp.bam new_header.sam original_rg.txt
     
     # Index the BAM file
     samtools index "${meta.id}.transcriptome.aligned.sorted.bam"
@@ -188,34 +263,9 @@ process MODKIT_PILEUP_GENOME {
     tuple val(meta), path("${meta.id}.genome.log"), emit: log
     
     script:
-    // Map modification names to modkit codes
-    def mod_map = [
-        'm6a':   'a',
-        '6ma':   'a',
-        'am':    '69426',
-        '2omea': '69426',
-        'inosine': '17596',
-        'ino':     '17596',
-        'pseu':    '17802',
-        'pseudouridine': '17802',
-        'um':    '19227',
-        '2omeu': '19227',
-        'gm':    '19229',
-        '2omeg': '19229',
-        'cm':    '19228',
-        '2omec': '19228',
-        'm5c':   'm',
-        '5mc':   'm'
-    ]
-    
     // Parse modifications called during basecalling and generate mod-threshold flags
-    def mod_threshold_flags = ""
-    if (params.mods && params.mods != "false") {
-        def called_mods = params.mods.split(',').collect { it.trim() }
-        mod_threshold_flags = called_mods.collect { mod ->
-            mod_map.containsKey(mod) ? "--mod-threshold ${mod_map[mod]}:${params.modkit_mod_threshold}" : ""
-        }.findAll { it != "" }.join(' ')
-    }
+    def mod_threshold_flags = buildModThresholdFlags(params.mods, MODKIT_MOD_MAP, params.modkit_mod_threshold)
+    def modified_bases_flag = buildModifiedBasesFlag(params.mods)
     
     """
     modkit pileup \\
@@ -224,13 +274,14 @@ process MODKIT_PILEUP_GENOME {
         --ref ${ref_genome} \\
         --threads ${task.cpus} \\
         --filter-threshold ${params.modkit_filter_threshold} \\
+        ${modified_bases_flag} \
         ${mod_threshold_flags} \\
-        --log-filepath "${meta.id}.genome.log"
+        --log-filepath "${meta.id}.genome.log" \\
         --bedrmod
     """
 }
 
-// Modkit pileup for genome-aligned BAM
+// Modkit pileup for transcriptome-aligned BAM
 process MODKIT_PILEUP_TRANSCRIPTOME {
     publishDir "${params.outdir}/modkitTranscriptome", mode: 'copy', pattern: "*.{bed,log}"
     
@@ -243,34 +294,9 @@ process MODKIT_PILEUP_TRANSCRIPTOME {
     tuple val(meta), path("${meta.id}.transcriptome.log"), emit: log
     
     script:
-    // Map modification names to modkit codes
-    def mod_map = [
-        'm6a':   'a',
-        '6ma':   'a',
-        'am':    '69426',
-        '2omea': '69426',
-        'inosine': '17596',
-        'ino':     '17596',
-        'pseu':    '17802',
-        'pseudouridine': '17802',
-        'um':    '19227',
-        '2omeu': '19227',
-        'gm':    '19229',
-        '2omeg': '19229',
-        'cm':    '19228',
-        '2omec': '19228',
-        'm5c':   'm',
-        '5mc':   'm'
-    ]
-    
     // Parse modifications called during basecalling and generate mod-threshold flags
-    def mod_threshold_flags = ""
-    if (params.mods && params.mods != "false") {
-        def called_mods = params.mods.split(',').collect { it.trim() }
-        mod_threshold_flags = called_mods.collect { mod ->
-            mod_map.containsKey(mod) ? "--mod-threshold ${mod_map[mod]}:${params.modkit_mod_threshold}" : ""
-        }.findAll { it != "" }.join(' ')
-    }
+    def mod_threshold_flags = buildModThresholdFlags(params.mods, MODKIT_MOD_MAP, params.modkit_mod_threshold)
+    def modified_bases_flag = buildModifiedBasesFlag(params.mods)
     
     """
     modkit pileup \\
@@ -279,8 +305,9 @@ process MODKIT_PILEUP_TRANSCRIPTOME {
         --ref ${ref_transcriptome} \\
         --threads ${task.cpus} \\
         --filter-threshold ${params.modkit_filter_threshold} \\
+        ${modified_bases_flag} \
         ${mod_threshold_flags} \\
-        --log-filepath "${meta.id}.transcriptome.log"
+        --log-filepath "${meta.id}.transcriptome.log" \\
         --bedrmod
     """
 }
@@ -298,7 +325,6 @@ workflow {
                         .map { dir -> tuple([id: dir.getBaseName()], dir) }
     
     ch_ref_genome = file(params.ref_genome)
-    ch_genome_gtf = file(params.genome_gtf)
     ch_ref_transcriptome = file(params.ref_transcriptome)
 
     // Print debug information
