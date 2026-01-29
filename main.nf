@@ -287,53 +287,6 @@ process MODKIT_PILEUP_TRANSCRIPTOME {
 
 
 
-// Salmon quantification using transcriptome-aligned BAM
-process SALMON_QUANT {
-    publishDir "${params.outdir}/salmon", mode: 'copy'
-    
-    input:
-    tuple val(meta), path(bam), path(bai)
-    path ref_transcriptome
-    
-    output:
-    tuple val(meta), path("salmon.${meta.id}.${task.index}"), emit: salmon_dir
-    
-    script:
-    """
-    salmon quant \\
-        -t ${ref_transcriptome} \\
-        -l A \\
-        -a ${bam} \\
-        -o salmon.${meta.id}.${task.index} \\
-        -p ${task.cpus} \\
-        --minAssignedFrags 0
-    """
-}
-
-// FeatureCounts on genome-aligned BAM
-process FEATURECOUNTS_GENOME{
-    publishDir "${params.outdir}/featureC", mode: 'copy'
-    
-    input:
-    tuple val(meta), path(bam), path(bai)
-    path genome_gtf
-    
-    output:
-    tuple val(meta), path("${meta.id}.featurecounts.tsv"), emit: counts
-    tuple val(meta), path("${meta.id}.featurecounts.tsv.summary"), emit: summary
-    
-    script:
-    """
-    featureCounts \\
-        -a "${genome_gtf}" \\
-        -L \\
-        -T ${task.cpus} \\
-        -o "${meta.id}.featurecounts.tsv" \\
-        "${bam}"
-    """
-}
-
-
 // ---
 // Workflow
 // ---
@@ -365,58 +318,31 @@ workflow {
         log.info msg
     }
 
-    // 3. Feature counting on genome-aligned BAM files 
-    FEATURECOUNTS_GENOME(MINIMAP2_ALIGN_GENOME.out.bam_bai, ch_genome_gtf)
-    FEATURECOUNTS_GENOME.out.counts.subscribe { meta, file -> 
-        def msg = "Completed FeatureCounts for: ${meta.id}\n  -> Output: ${params.outdir}/featureC/${file.name}"
-        log.info msg
-        completion_log.add(msg)
-    }
-
-    // 4. Transcriptome alignment
+    // 3. Transcriptome alignment
     MINIMAP2_ALIGN_TRANSCRIPTOME(DORADO_BASECALL.out.bam, ch_ref_transcriptome)
     MINIMAP2_ALIGN_TRANSCRIPTOME.out.bam_bai.subscribe { meta, bam, bai -> 
         def msg = "Completed Transcriptome Alignment for: ${meta.id}\n  -> Output: ${params.outdir}/base/${bam.name}"
         log.info msg
     }
 
-    // 5. NanoComp comparison: take the transcriptome and genome aligned BAMs and run NanoComp.
-    // Pass both alignment outputs (each is a tuple: meta, bam, bai).
-    NANOCOMP(MINIMAP2_ALIGN_TRANSCRIPTOME.out.bam_bai, MINIMAP2_ALIGN_GENOME.out.bam_bai)
-    NANOCOMP.out.txt.subscribe { meta, report -> 
-        def msg = "Completed NanoComp QC for: ${meta.id}\n  -> Output: ${params.outdir}/nanocomp/${report.name}"
-        log.info msg
-        completion_log.add(msg)
-    }
-    
-    
-    // 6. Salmon quantification using transcriptome-aligned BAM
-    SALMON_QUANT(MINIMAP2_ALIGN_TRANSCRIPTOME.out.bam_bai, ch_ref_transcriptome)
-    SALMON_QUANT.out.salmon_dir.subscribe { meta, dir -> 
-        def msg = "Completed Salmon Quantification for: ${meta.id}\n  -> Output: ${params.outdir}/salmon/${dir.name}"
-        log.info msg
-        completion_log.add(msg)
-    }
-
 
     // 7. Modification pileup (only if mods were called)
-    if (params.mods && params.mods != "false") {
-        MODKIT_PILEUP_GENOME(MINIMAP2_ALIGN_GENOME.out.bam_bai, ch_ref_genome)
-        // Run transcriptome acceleration before regular modkit pileup
-        MODKIT_PILEUP_TRANSCRIPTOME(MINIMAP2_ALIGN_TRANSCRIPTOME.out.bam_bai, ch_ref_transcriptome)
 
-        
-        // Log completion for modification steps
-        MODKIT_PILEUP_GENOME.out.bed.subscribe { meta, file -> 
-            def msg = "Completed Modkit Genome Pileup for: ${meta.id}\n  -> Output: ${params.outdir}/modkitGenome/${file.name}"
-            log.info msg
-            completion_log.add(msg)
-        }
-        MODKIT_PILEUP_TRANSCRIPTOME.out.bed.subscribe { meta, file -> 
-            def msg = "Completed Modkit Transcriptome Pileup for: ${meta.id}\n  -> Output: ${params.outdir}/modkitTranscriptome/${file.name}"
-            log.info msg
-            completion_log.add(msg)
-        }
+    MODKIT_PILEUP_GENOME(MINIMAP2_ALIGN_GENOME.out.bam_bai, ch_ref_genome)
+    // Run transcriptome acceleration before regular modkit pileup
+    MODKIT_PILEUP_TRANSCRIPTOME(MINIMAP2_ALIGN_TRANSCRIPTOME.out.bam_bai, ch_ref_transcriptome)
+
+    
+    // Log completion for modification steps
+    MODKIT_PILEUP_GENOME.out.bed.subscribe { meta, file -> 
+        def msg = "Completed Modkit Genome Pileup for: ${meta.id}\n  -> Output: ${params.outdir}/modkitGenome/${file.name}"
+        log.info msg
+        completion_log.add(msg)
+    }
+    MODKIT_PILEUP_TRANSCRIPTOME.out.bed.subscribe { meta, file -> 
+        def msg = "Completed Modkit Transcriptome Pileup for: ${meta.id}\n  -> Output: ${params.outdir}/modkitTranscriptome/${file.name}"
+        log.info msg
+        completion_log.add(msg)
     }
 }
 
