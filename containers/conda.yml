@@ -1,0 +1,12 @@
+name: base
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.10
+  - pandas
+  - polars
+  - samtools
+  - numpy
+  - pysam
+  - tqdm

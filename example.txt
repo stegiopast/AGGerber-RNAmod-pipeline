@@ -1,0 +1,7 @@
+nextflow run main.nf \
+  --pod5_dir /path/to/your/data.pod5 \
+  --model sup \
+  --mods "2OmeG" \
+  --ref_genome /path/to/reference/genome.fa \
+  --ref_transcriptome /path/to/reference/transcriptome.fa \
+  --genome_gtf /path/to/annotation.gtf \

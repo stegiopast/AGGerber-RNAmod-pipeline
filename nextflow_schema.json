@@ -1,0 +1,127 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://raw.githubusercontent.com/Luxen13/piper/master/nextflow_schema.json",
+    "title": "Nanopore Sequence Analysis Pipeline",
+    "description": "A Nextflow pipeline for basecalling, aligning, and indexing nanopore sequencing data.",
+    "type": "object",
+    "definitions": {
+        "input_output_options": {
+            "title": "Input/output options",
+            "type": "object",
+            "fa_icon": "fas fa-terminal",
+            "properties": {
+                "pod5_dir": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "fa_icon": "fas fa-folder-open",
+                    "description": "Path to the directory containing POD5 files.",
+                    "help_text": "This is the directory where the raw nanopore signal data is stored."
+                },
+                "ref_genome": {
+                    "type": "string",
+                    "format": "file-path",
+                    "fa_icon": "fas fa-file",
+                    "description": "Path to the reference genome in FASTA format.",
+                    "help_text": "The reference genome to which the basecalled reads will be aligned."
+                },
+                "ref_transcriptome": {
+                    "type": "string",
+                    "format": "file-path",
+                    "fa_icon": "fas fa-file",
+                    "description": "Path to the reference transcriptome in FASTA format.",
+                    "help_text": "The reference transcriptome to which the basecalled reads will be aligned."
+                },
+                "outdir": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "fa_icon": "fas fa-folder",
+                    "description": "The output directory where the results will be saved.",
+                    "default": "./results",
+                    "help_text": "Results will be organized in subdirectories for each analysis step."
+                }
+            },
+            "required": [
+                "pod5_dir",
+                "ref_genome",
+                "ref_transcriptome"
+            ]
+        },
+        "dorado_options": {
+            "title": "Dorado options",
+            "type": "object",
+            "fa_icon": "fas fa-dna",
+            "properties": {
+                "model": {
+                    "type": "string",
+                    "default": "sup",
+                    "fa_icon": "fas fa-brain",
+                    "description": "Basecalling model alias or full name",
+                    "help_text": "Use 'fast', 'hac', or 'sup' for automatic detection, or provide a full model name for reproducibility."
+                },
+                "mods": {
+                    "type": "string",
+                    "default": true,
+                    "fa_icon": "fas fa-search",
+                    "description": "Space-separated list of modifications to call (e.g., 'm6A 5mC').",
+                    "help_text": "Set to false to disable modification calling."
+                }
+            }
+        },
+        "modkit_options": {
+            "title": "Modkit Options",
+            "type": "object",
+            "fa_icon": "fas fa-cogs",
+            "properties": {
+                "modkit_threshold": {
+                    "type": "number",
+                    "default": 0.98,
+                    "fa_icon": "fas fa-filter",
+                    "description": "Probability threshold for Modkit pileup.",
+                    "help_text": "Minimum probability to count a call as modified."
+                },
+                "motif_str": {
+                    "type": "string",
+                    "default": false,
+                    "fa_icon": "fas fa-dna",
+                    "description": "Motif and offset for Modkit analysis.",
+                    "help_text": "Format: 'MOTIF OFFSET' (e.g., 'DRACH 2' for m6A motif analysis). Set to false for all-context analysis."
+                }
+            }
+        },
+        "gpu_options": {
+            "title": "GPU Options",
+            "type": "object",
+            "fa_icon": "fas fa-microchip",
+            "properties": {
+                "use_gpu": {
+                    "type": "boolean",
+                    "default": true,
+                    "fa_icon": "fas fa-microchip",
+                    "description": "Use GPU acceleration for basecalling",
+                    "help_text": "Enable GPU acceleration for faster basecalling. Disable if no GPU is available."
+                },
+                "cpus": {
+                    "type": "integer",
+                    "default": 4,
+                    "fa_icon": "fas fa-microchip",
+                    "description": "Number of CPUs to use for multi-threaded processes",
+                    "help_text": "Specifies the number of CPU cores to allocate to each process."
+                }
+            }
+        }
+    },
+    "allOf": [
+        {
+            "$ref": "#/definitions/input_output_options"
+        },
+        {
+            "$ref": "#/definitions/dorado_options"
+        },
+        {
+            "$ref": "#/definitions/modkit_options"
+        },
+        {
+            "$ref": "#/definitions/gpu_options"
+        }
+    ]
+}
