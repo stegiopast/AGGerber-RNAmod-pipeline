@@ -137,8 +137,8 @@ task MinimapGenome {
 
     runtime {
         cpu: cpus
-        # Use a tagged biocontainers build to avoid manifest lookup failures
-        docker: "biocontainers/minimap2:v2.26-2-deb_cv1"
+        # Match the working Nextflow pipeline tag
+        docker: "nanozoo/minimap2:2.28--9e3bd01"
     }
 }
 
@@ -173,8 +173,8 @@ task MinimapTranscriptome {
 
     runtime {
         cpu: cpus
-        # Use a tagged biocontainers build to avoid manifest lookup failures
-        docker: "biocontainers/minimap2:v2.26-2-deb_cv1"
+        # Match the working Nextflow pipeline tag
+        docker: "nanozoo/minimap2:2.28--9e3bd01"
     }
 }
 
