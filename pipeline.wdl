@@ -308,6 +308,7 @@ task ModkitPileupTranscriptome {
         --mod-threshold 19227:0.98 \
         --mod-threshold 19229:0.98 \
         --log-filepath "~{sample_id}.transcriptome.log" \
+        --preload-references \
         --bedrmod
     >>>
 
