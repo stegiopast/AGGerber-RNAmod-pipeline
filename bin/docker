@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Wrapper placed early in PATH to force GPU on docker run
+if [[ "$1" == "run" ]]; then
+  shift
+  exec /usr/bin/docker run --gpus all "$@"
+elif [[ "$1" == "create" ]]; then
+  shift
+  exec /usr/bin/docker create --gpus all "$@"
+else
+  exec /usr/bin/docker "$@"
+fi
