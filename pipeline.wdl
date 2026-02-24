@@ -127,7 +127,7 @@ task DoradoBasecall {
         --device "~{use_gpu}" \
         "sup,inosine_m6A_2OmeA,m5C_2OmeC,pseU_2OmeU,2OmeG" \
         --estimate-poly-a \
-        --emit-moves
+        --emit-moves \
         "~{pod5_file}" > "~{sample_id}.bam"
     >>>
 
