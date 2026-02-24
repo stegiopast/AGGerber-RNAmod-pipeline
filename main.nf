@@ -307,6 +307,7 @@ process MODKIT_PILEUP_TRANSCRIPTOME {
         --filter-threshold ${params.modkit_filter_threshold} \\
         ${modified_bases_flag} \
         ${mod_threshold_flags} \\
+        --preload-references \
         --log-filepath "${meta.id}.transcriptome.log" \\
         --bedrmod
     """
