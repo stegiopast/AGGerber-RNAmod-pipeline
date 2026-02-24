@@ -106,8 +106,9 @@ task Pod5Merge {
         cpu: cpus
         memory: "128GB"
         maxRunTime: 86400 #24 hours (24 * 3600 seconds) Maximum Allocation time = (~48h = 172800)
+        runtime_minutes: 1440 #24 hours (24 * 60 minutes)
         # Use digest form with @ to avoid manifest lookup failures
-        docker: "ontresearch/dorado@sha256:6156fdbb48ff13fbb141b4f1fc6e6300f05221ecfdd114fc8323a0e38296c1dd"
+        docker: "ontresearch/dorado:shac8f356489fa8b44b31beba841b84d2879de2088e"
     }
 }
 
@@ -126,7 +127,7 @@ task DoradoBasecall {
         --device "~{use_gpu}" \
         "sup,inosine_m6A_2OmeA,m5C_2OmeC,pseU_2OmeU,2OmeG" \
         --estimate-poly-a \
-        --emit-moves \
+        --emit-moves
         "~{pod5_file}" > "~{sample_id}.bam"
     >>>
 
@@ -141,8 +142,9 @@ task DoradoBasecall {
         gpuCount: 1
         memory: "512GB"
         maxRunTime: 172800 #48 hours (48 * 3600 seconds)
+        runtime_minutes: 2820 #47 hours (47 * 60 minutes)
         # Use digest form with @ to avoid manifest lookup failures
-        docker: "ontresearch/dorado@sha256:6156fdbb48ff13fbb141b4f1fc6e6300f05221ecfdd114fc8323a0e38296c1dd"
+        docker: "ontresearch/dorado:shac8f356489fa8b44b31beba841b84d2879de2088e"
     }
 }
 
@@ -167,7 +169,7 @@ task MinimapGenome {
     cat original_rg.txt >> new_header.sam
     samtools reheader new_header.sam temp.bam > "~{sample_id}.aligned.sorted.bam"
     rm temp.bam new_header.sam original_rg.txt
-    samtools index --threads ~{cpus} "~{sample_id}.aligned.sorted.bam"
+    samtools index -@ ~{cpus} "~{sample_id}.aligned.sorted.bam"
     >>>
 
     output {
@@ -179,6 +181,7 @@ task MinimapGenome {
         cpu: cpus
         memory: "128GB"
         maxRunTime: 86400 #24 hours (24 * 3600 seconds)
+        runtime_minutes: 1440 #24 hours (24 * 60 minutes)
         # Match the working Nextflow pipeline tag
         docker: "nanozoo/minimap2:2.28--9e3bd01"
     }
@@ -205,7 +208,7 @@ task MinimapTranscriptome {
     cat original_rg.txt >> new_header.sam
     samtools reheader new_header.sam temp.bam > "~{sample_id}.transcriptome.aligned.sorted.bam"
     rm temp.bam new_header.sam original_rg.txt
-    samtools index --threads ~{cpus} "~{sample_id}.transcriptome.aligned.sorted.bam"
+    samtools index -@ ~{cpus} "~{sample_id}.transcriptome.aligned.sorted.bam"
     >>>
 
     output {
@@ -217,6 +220,7 @@ task MinimapTranscriptome {
         cpu: cpus
         memory: "128GB"
         maxRunTime: 86400 #24 hours (24 * 3600 seconds)
+        runtime_minutes: 1440 #24 hours (24 * 60 minutes)
         # Match the working Nextflow pipeline tag
         docker: "nanozoo/minimap2:2.28--9e3bd01"
     }
@@ -235,11 +239,9 @@ task NanoCompQC {
 
     mkdir -p "nanocomp_report_~{sample_id}"
     NanoComp --bam "~{genome_bam}" "~{transcriptome_bam}" \
-             --names "genome" "transcriptome" \
-             --threads ~{cpus} \
-             --outdir "nanocomp_report_~{sample_id}" \
-             --logfile "nanocomp_report_~{sample_id}/nanocomp.log" \
-             --report "nanocomp_report_~{sample_id}/nanocomp.html"
+    --names "genome" "transcriptome" \
+    --threads ~{cpus} \
+    --outdir "nanocomp_report_~{sample_id}"
 
     tar -czf "nanocomp_report_~{sample_id}.tar.gz" "nanocomp_report_~{sample_id}"
     >>>
@@ -252,6 +254,7 @@ task NanoCompQC {
         cpu: cpus
         memory: "128GB"
         maxRunTime: 43200 #12 hours (12 * 3600 seconds)
+        runtime_minutes: 1440 #24 hours (24 * 60 minutes)
         docker: "luxendr13/nanocomp:0.6.0"
     }
 }
@@ -296,6 +299,7 @@ task ModkitPileupGenome {
         cpu: cpus
         memory: "128GB"
         maxRunTime: 86400 #24 hours (24 * 3600 seconds)
+        runtime_minutes: 1440 #24 hours (24 * 60 minutes)
         docker: "ontresearch/modkit:sha489d708a48c66368e5d1e118538e5dca68203a64"
         failOnStderr: false
     }
@@ -342,6 +346,7 @@ task ModkitPileupTranscriptome {
         cpu: cpus
         memory: "128GB"
         maxRunTime: 86400 #24 hours (24 * 3600 seconds)
+        runtime_minutes: 1440 #24 hours (24 * 60 minutes)
         docker: "ontresearch/modkit:sha489d708a48c66368e5d1e118538e5dca68203a64"
         failOnStderr: false
     }
