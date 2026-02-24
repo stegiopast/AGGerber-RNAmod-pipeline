@@ -10,17 +10,16 @@ workflow ont_mRNA_pilot {
         Int cpus = 64
     }
 
-    File? merged_pod5
     if (length(pod5_files) > 1) {
         call Pod5Merge {
             input:
                 pod5_files = pod5_files,
-                sample_id = sample_id
+                sample_id = sample_id,
+                cpus = cpus
         }
-        merged_pod5 = Pod5Merge.merged_pod5
     }
 
-    File pod5_input = select_first([merged_pod5, pod5_files[0]])
+    File pod5_input = select_first([Pod5Merge.merged_pod5, pod5_files[0]])
 
     call DoradoBasecall {
         input:
@@ -90,16 +89,25 @@ task Pod5Merge {
     input {
         Array[File] pod5_files
         String sample_id
+        Int cpus
     }
 
     command <<<!
     set -euo pipefail
 
-    pod5 merge ~{sep=' ' pod5_files} -o "~{sample_id}.merged.pod5"
+    pod5 merge -t ~{cpus} -D ~{sep=' ' pod5_files} -o "~{sample_id}.merged.pod5"
     >>>
 
     output {
         File merged_pod5 = "~{sample_id}.merged.pod5"
+    }
+
+    runtime {
+        cpu: cpus
+        memory: "128GB"
+        maxRunTime: 86400 #24 hours (24 * 3600 seconds) Maximum Allocation time = (~48h = 172800)
+        # Use digest form with @ to avoid manifest lookup failures
+        docker: "ontresearch/dorado@sha256:6156fdbb48ff13fbb141b4f1fc6e6300f05221ecfdd114fc8323a0e38296c1dd"
     }
 }
 
@@ -118,7 +126,7 @@ task DoradoBasecall {
         --device "~{use_gpu}" \
         "sup,inosine_m6A_2OmeA,m5C_2OmeC,pseU_2OmeU,2OmeG" \
         --estimate-poly-a \
-        --emit-moves -n 10000 \
+        --emit-moves \
         "~{pod5_file}" > "~{sample_id}.bam"
     >>>
 
@@ -129,6 +137,10 @@ task DoradoBasecall {
 
     runtime {
         cpu: cpus
+        gpu: true
+        gpuCount: 1
+        memory: "512GB"
+        maxRunTime: 172800 #48 hours (48 * 3600 seconds)
         # Use digest form with @ to avoid manifest lookup failures
         docker: "ontresearch/dorado@sha256:6156fdbb48ff13fbb141b4f1fc6e6300f05221ecfdd114fc8323a0e38296c1dd"
     }
@@ -145,17 +157,17 @@ task MinimapGenome {
     command <<<
     set -euo pipefail
 
-    samtools view -H "~{bam}" | grep "^@RG" > original_rg.txt
+    samtools view --threads ~{cpus} -H "~{bam}" | grep "^@RG" > original_rg.txt
 
-    samtools fastq -T "*" "~{bam}" | minimap2 -y --MD -ax splice -uf -k14 -t ~{cpus} "~{ref_genome}" - | \
-    samtools view -bh -F 260 | \
-    samtools sort -@ ~{cpus} -o temp.bam
+    samtools fastq --threads ~{cpus} -T "*" "~{bam}" | minimap2 -y --MD -ax splice -uf -k14 -t ~{cpus} "~{ref_genome}" - | \
+    samtools sort --threads ~{cpus} | \
+    samtools view --threads ~{cpus} -bh -F 260 -o temp.bam
 
-    samtools view -H temp.bam > new_header.sam
+    samtools view --threads ~{cpus} -H temp.bam > new_header.sam
     cat original_rg.txt >> new_header.sam
     samtools reheader new_header.sam temp.bam > "~{sample_id}.aligned.sorted.bam"
     rm temp.bam new_header.sam original_rg.txt
-    samtools index "~{sample_id}.aligned.sorted.bam"
+    samtools index --threads ~{cpus} "~{sample_id}.aligned.sorted.bam"
     >>>
 
     output {
@@ -165,6 +177,8 @@ task MinimapGenome {
 
     runtime {
         cpu: cpus
+        memory: "128GB"
+        maxRunTime: 86400 #24 hours (24 * 3600 seconds)
         # Match the working Nextflow pipeline tag
         docker: "nanozoo/minimap2:2.28--9e3bd01"
     }
@@ -181,17 +195,17 @@ task MinimapTranscriptome {
     command <<<
     set -euo pipefail
 
-    samtools view -H "~{bam}" | grep "^@RG" > original_rg.txt
+    samtools view --threads ~{cpus} -H "~{bam}" | grep "^@RG" > original_rg.txt
 
-    samtools fastq -T "*" "~{bam}" | minimap2 -y --MD -ax map-ont -t ~{cpus} "~{ref_transcriptome}" - | \
-    samtools view -bh -F 260 | \
-    samtools sort -@ ~{cpus} -o temp.bam
+    samtools fastq --threads ~{cpus} -T "*" "~{bam}" | minimap2 -y --MD -ax map-ont -t ~{cpus} "~{ref_transcriptome}" - | \
+    samtools sort --threads ~{cpus} | \
+    samtools view --threads ~{cpus} -bh -F 260 -o temp.bam
 
-    samtools view -H temp.bam > new_header.sam
+    samtools view --threads ~{cpus} -H temp.bam > new_header.sam
     cat original_rg.txt >> new_header.sam
     samtools reheader new_header.sam temp.bam > "~{sample_id}.transcriptome.aligned.sorted.bam"
     rm temp.bam new_header.sam original_rg.txt
-    samtools index "~{sample_id}.transcriptome.aligned.sorted.bam"
+    samtools index --threads ~{cpus} "~{sample_id}.transcriptome.aligned.sorted.bam"
     >>>
 
     output {
@@ -201,6 +215,8 @@ task MinimapTranscriptome {
 
     runtime {
         cpu: cpus
+        memory: "128GB"
+        maxRunTime: 86400 #24 hours (24 * 3600 seconds)
         # Match the working Nextflow pipeline tag
         docker: "nanozoo/minimap2:2.28--9e3bd01"
     }
@@ -234,6 +250,8 @@ task NanoCompQC {
 
     runtime {
         cpu: cpus
+        memory: "128GB"
+        maxRunTime: 43200 #12 hours (12 * 3600 seconds)
         docker: "luxendr13/nanocomp:0.6.0"
     }
 }
@@ -276,7 +294,10 @@ task ModkitPileupGenome {
 
     runtime {
         cpu: cpus
+        memory: "128GB"
+        maxRunTime: 86400 #24 hours (24 * 3600 seconds)
         docker: "ontresearch/modkit:sha489d708a48c66368e5d1e118538e5dca68203a64"
+        failOnStderr: false
     }
 }
 
@@ -319,6 +340,9 @@ task ModkitPileupTranscriptome {
 
     runtime {
         cpu: cpus
+        memory: "128GB"
+        maxRunTime: 86400 #24 hours (24 * 3600 seconds)
         docker: "ontresearch/modkit:sha489d708a48c66368e5d1e118538e5dca68203a64"
+        failOnStderr: false
     }
 }
