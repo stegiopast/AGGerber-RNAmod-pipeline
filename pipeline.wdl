@@ -6,27 +6,37 @@ workflow ont_mRNA_pilot {
         String sample_id
         File ref_genome
         File ref_transcriptome
-        String use_gpu = "cuda:all"
-        Int cpus = 64
+        String use_gpu
+        Int cpus
+        Int gpus
     }
 
-    if (length(pod5_files) > 1) {
-        call Pod5Merge {
-            input:
-                pod5_files = pod5_files,
-                sample_id = sample_id,
-                cpus = cpus
-        }
-    }
+    # if (length(pod5_files) > 1) {
+    #     call Pod5Merge {
+    #         input:
+    #             pod5_files = pod5_files,
+    #             sample_id = sample_id,
+    #             cpus = cpus
+    #     }
+    # }
 
-    File pod5_input = select_first([Pod5Merge.merged_pod5, pod5_files[0]])
+    # File pod5_input = select_first([Pod5Merge.merged_pod5, pod5_files[0]])
 
+    # call DoradoBasecall {
+    #     input:
+    #         pod5_file = pod5_input,
+    #         sample_id = sample_id,
+    #         use_gpu = use_gpu,
+    #         cpus = cpus
+    # }
+    
     call DoradoBasecall {
         input:
-            pod5_file = pod5_input,
+            pod5_files = pod5_files,
             sample_id = sample_id,
             use_gpu = use_gpu,
-            cpus = cpus
+            cpus = cpus,
+            gpus = gpus
     }
 
     call MinimapGenome {
@@ -85,50 +95,58 @@ workflow ont_mRNA_pilot {
     }
 }
 
-task Pod5Merge {
-    input {
-        Array[File] pod5_files
-        String sample_id
-        Int cpus
-    }
+# task Pod5Merge {
+#     input {
+#         Array[File] pod5_files
+#         String sample_id
+#         Int cpus
+#     }
 
-    command <<<!
-    set -euo pipefail
+#     command <<<!
+#     set -euo pipefail
 
-    pod5 merge -t ~{cpus} -D ~{sep=' ' pod5_files} -o "~{sample_id}.merged.pod5"
-    >>>
+#     pod5 merge -t ~{cpus} -D ~{sep=' ' pod5_files} -o "~{sample_id}.merged.pod5"
+#     >>>
 
-    output {
-        File merged_pod5 = "~{sample_id}.merged.pod5"
-    }
+#     output {
+#         File merged_pod5 = "~{sample_id}.merged.pod5"
+#     }
 
-    runtime {
-        cpu: cpus
-        memory: "128GB"
-        maxRunTime: 86400 #24 hours (24 * 3600 seconds) Maximum Allocation time = (~48h = 172800)
-        runtime_minutes: 1440 #24 hours (24 * 60 minutes)
-        # Use digest form with @ to avoid manifest lookup failures
-        docker: "ontresearch/dorado:shac8f356489fa8b44b31beba841b84d2879de2088e"
-    }
-}
+#     runtime {
+#         cpu: cpus
+#         memory: "128GB"
+#         maxRunTime: 86400 #24 hours (24 * 3600 seconds) Maximum Allocation time = (~48h = 172800)
+#         runtime_minutes: 1440 #24 hours (24 * 60 minutes)
+#         # Use digest form with @ to avoid manifest lookup failures
+#         docker: "ontresearch/dorado:shac8f356489fa8b44b31beba841b84d2879de2088e"
+#     }
+# }
 
 task DoradoBasecall {
     input {
-        File pod5_file
+        Array[File] pod5_files
         String sample_id
         String use_gpu
         Int cpus
+        Int gpus
     }
 
     command <<<
     set -euo pipefail
 
-    dorado basecaller \
-        --device "~{use_gpu}" \
+    mkdir -p bam_temp
+    for pod5 in ~{sep=' ' pod5_files}; do
+        filename=$(basename "$pod5" .pod5)
+        dorado basecaller \
+        --device ~{use_gpu} \
         "sup,inosine_m6A_2OmeA,m5C_2OmeC,pseU_2OmeU,2OmeG" \
         --estimate-poly-a \
-        --emit-moves \
-        "~{pod5_file}" > "~{sample_id}.bam"
+        --emit-moves $pod5 > "bam_temp/${filename}.bam"
+    done
+    ls bam_temp/*.bam > bam_list.txt
+    samtools merge -@ ~{cpus} -o "~{sample_id}.bam" -b bam_list.txt
+    samtools index -@ ~{cpus} "~{sample_id}.bam"
+    rm -rf "bam_temp"
     >>>
 
     output {
@@ -139,11 +157,10 @@ task DoradoBasecall {
     runtime {
         cpu: cpus
         gpu: true
-        gpuCount: 1
+        gpuCount: gpus
         memory: "512GB"
         maxRunTime: 172800 #48 hours (48 * 3600 seconds)
         runtime_minutes: 2820 #47 hours (47 * 60 minutes)
-        # Use digest form with @ to avoid manifest lookup failures
         docker: "ontresearch/dorado:shac8f356489fa8b44b31beba841b84d2879de2088e"
     }
 }
@@ -256,6 +273,7 @@ task NanoCompQC {
         maxRunTime: 43200 #12 hours (12 * 3600 seconds)
         runtime_minutes: 1440 #24 hours (24 * 60 minutes)
         docker: "luxendr13/nanocomp:0.6.0"
+        failOnStderr: false
     }
 }
 
