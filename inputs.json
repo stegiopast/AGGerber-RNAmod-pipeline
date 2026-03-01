@@ -1,11 +1,15 @@
 {
   "ont_mRNA_pilot.pod5_files": [
-  "/path/to/100k_test_set.pod5"
+  "/home/stefan/cromwell/barcoding_test_1.pod5",
+  "/home/stefan/cromwell/barcoding_test_2.pod5"
 ],
   "ont_mRNA_pilot.sample_id": "ONT_mRNA_pilot_sample_TEST",
-  "ont_mRNA_pilot.ref_genome": "/path/to/GRCh38.primary_assembly.genome.fa",
-  "ont_mRNA_pilot.ref_transcriptome": "/path/to/gencode.v49.transcripts.fa",
-  "ont_mRNA_pilot.cpus": 30,
+  "ont_mRNA_pilot.ref_genome": "/home/stefan/Reference_data/Human_reference_data/human_genome_38_v49/GRCh38.primary_assembly.genome.fa",
+  "ont_mRNA_pilot.ref_transcriptome": "/home/stefan/Reference_data/Human_reference_data/human_genome_38_v49/gencode.v49.transcripts.fa",
+  "ont_mRNA_pilot.cpus": 12,
+  "ont_mRNA_pilot.barcoded": true,
+  "ont_mRNA_pilot.barcoding_model": "b04_RNA004",
+  "ont_mRNA_pilot.basecalling_type": "sup",
   "ont_mRNA_pilot.use_gpu": "cuda:0",
   "ont_mRNA_pilot.gpus": 1
 }
