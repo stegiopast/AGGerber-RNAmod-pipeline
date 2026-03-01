@@ -221,14 +221,12 @@ task DoradoBasecall {
         --device ~{use_gpu} \
         "sup,inosine_m6A_2OmeA,m5C_2OmeC,pseU_2OmeU,2OmeG" \
         --estimate-poly-a \
-        -n 1000 \
         --emit-moves $pod5 > "bam_temp/${filename}.bam"
         else
         dorado basecaller \
         --device ~{use_gpu} \
         "fast" \
         --estimate-poly-a \
-        -n 1000 \
         --emit-moves $pod5 > "bam_temp/${filename}.bam"
         fi
     done
