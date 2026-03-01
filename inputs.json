@@ -1,18 +1,15 @@
 {
   "ont_mRNA_pilot.pod5_files": [
-  "/home/johannes/100k_test_pod5/split_pod5/split_read_ids_00.pod5",
-  "/home/johannes/100k_test_pod5/split_pod5/split_read_ids_01.pod5",
-  "/home/johannes/100k_test_pod5/split_pod5/split_read_ids_02.pod5",
-  "/home/johannes/100k_test_pod5/split_pod5/split_read_ids_03.pod5",
-  "/home/johannes/100k_test_pod5/split_pod5/split_read_ids_04.pod5",
-  "/home/johannes/100k_test_pod5/split_pod5/split_read_ids_05.pod5",
-  "/home/johannes/100k_test_pod5/split_pod5/split_read_ids_06.pod5",
-  "/home/johannes/100k_test_pod5/split_pod5/split_read_ids_07.pod5",
-  "/home/johannes/100k_test_pod5/split_pod5/split_read_ids_08.pod5",
-  "/home/johannes/100k_test_pod5/split_pod5/split_read_ids_09.pod5"
+  "/home/stefan/cromwell/barcoding_test_1.pod5",
+  "/home/stefan/cromwell/barcoding_test_2.pod5"
 ],
   "ont_mRNA_pilot.sample_id": "ONT_mRNA_pilot_sample_TEST",
-  "ont_mRNA_pilot.ref_genome": "/home/johannes/RefGenomes/v49/GRCh38.primary_assembly.genome.fa",
-  "ont_mRNA_pilot.ref_transcriptome": "/home/johannes/RefGenomes/v49/gencode.v49.transcripts.fa",
-  "ont_mRNA_pilot.cpus": 12
+  "ont_mRNA_pilot.ref_genome": "/home/stefan/Reference_data/Human_reference_data/human_genome_38_v49/GRCh38.primary_assembly.genome.fa",
+  "ont_mRNA_pilot.ref_transcriptome": "/home/stefan/Reference_data/Human_reference_data/human_genome_38_v49/gencode.v49.transcripts.fa",
+  "ont_mRNA_pilot.cpus": 12,
+  "ont_mRNA_pilot.barcoded": true,
+  "ont_mRNA_pilot.barcoding_model": "b04_RNA004",
+  "ont_mRNA_pilot.basecalling_type": "sup",
+  "ont_mRNA_pilot.use_gpu": "cuda:0",
+  "ont_mRNA_pilot.gpus": 1
 }
